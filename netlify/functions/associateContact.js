@@ -1,10 +1,11 @@
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
-// Helper function to send a response
-const sendResponse = (statusCode, body) => ({
-  statusCode,
-  body: JSON.stringify(body)
-});
+const sendResponse = (statusCode, body) => {
+  return new Response(JSON.stringify(body), {
+    status: statusCode,
+    headers: { 'Content-Type': 'application/json' }
+  });
+};
 
 export default async (request, context) => {
   const secretKey = process.env.HUBSPOT_WEBHOOK_SECRET;
