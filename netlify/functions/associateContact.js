@@ -36,7 +36,6 @@ export default async (request, context) => {
   };
 
   try {
-    // 1. Search for the company by dealer_number
     const searchPayload = {
       filterGroups: [{
         filters: [{
@@ -71,27 +70,8 @@ export default async (request, context) => {
     }
     const companyId = company.id;
 
-    // 2. Get association types (labels) for contact→company
-    const assocTypesResp = await fetch('https://api.hubapi.com/crm/v4/associations/CONTACTS/COMPANIES/labels', {
-      method: 'GET',
-      headers: hsHeaders
-    });
+    const PRIMARY_CONTACT_TO_COMPANY_TYPE_ID = 1;
 
-    if (!assocTypesResp.ok) {
-      const errorText = await assocTypesResp.text();
-      throw new Error(`Failed to fetch association types: ${errorText}`);
-    }
-
-    const assocTypesData = await assocTypesResp.json();
-    const primaryAssocType = assocTypesData.results.find(
-      t =>t.name && t.name.toLowerCase().includes('primary')
-    );
-
-    if (!primaryAssocType) {
-      throw new Error('Could not find Primary association type ID for contacts → companies');
-    }
-
-    // 3. Set the primary association
     const associationResp = await fetch('https://api.hubapi.com/crm/v4/associations/CONTACTS/COMPANIES/batch/create', {
       method: 'POST',
       headers: hsHeaders,
@@ -100,7 +80,7 @@ export default async (request, context) => {
           {
             from: { id: contactId },
             to: { id: companyId },
-            type: primaryAssocType.id
+            type: PRIMARY_CONTACT_TO_COMPANY_TYPE_ID
           }
         ]
       })
