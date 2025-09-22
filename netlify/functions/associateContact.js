@@ -5,6 +5,15 @@ const sendResponse = (statusCode, body) => {
   });
 };
 
+// ======================     LOGGING CONTROL     ======================
+const isTestingMode = process.env.TESTING === 'true';
+
+const logger = {
+  log: isTestingMode ? console.log : () => {},
+  error: isTestingMode ? console.error : () => {},
+};
+// =====================================================================
+
 export default async (request, context) => {
   const secretKey = process.env.HUBSPOT_WEBHOOK_SECRET;
   const headerSecret = request.headers.get('x-hubspot-secret');
@@ -48,6 +57,7 @@ export default async (request, context) => {
       limit: 1
     };
 
+    logger.log(`Searching company with dealer_number: ${contactDealerNumber}`);
     const companySearchResp = await fetch('https://api.hubapi.com/crm/v3/objects/companies/search', {
       method: 'POST',
       headers: hsHeaders,
@@ -56,10 +66,12 @@ export default async (request, context) => {
 
     if (!companySearchResp.ok) {
       const errorText = await companySearchResp.text();
+      logger.error(`Company search failed: ${errorText}`);
       throw new Error(`HubSpot Company Search API failed: ${errorText}`);
     }
 
     const companyData = await companySearchResp.json();
+    logger.log('Company search result:', JSON.stringify(companyData));
     const company = companyData.results[0];
 
     if (!company) {
@@ -69,8 +81,10 @@ export default async (request, context) => {
       });
     }
     const companyId = company.id;
+    logger.log(`Company found: ${companyId}`);
 
     const PRIMARY_CONTACT_TO_COMPANY_TYPE_ID = 1;
+    logger.log(`Associating contact ${contactId} with company ${companyId} as PRIMARY (typeId=${PRIMARY_CONTACT_TO_COMPANY_TYPE_ID})`);
 
     const associationResp = await fetch('https://api.hubapi.com/crm/v4/associations/CONTACTS/COMPANIES/batch/create', {
       method: 'POST',
@@ -88,12 +102,33 @@ export default async (request, context) => {
 
     if (!associationResp.ok) {
       const errorText = await associationResp.text();
+      logger.error(`Association call failed: ${errorText}`);
       throw new Error(`HubSpot Primary Association API failed: ${errorText}`);
+    }
+
+    const result = await associationResp.json();
+    logger.log('Association API result:', JSON.stringify(result));
+
+    let verification = null;
+
+    if (isTestingMode) {
+      const verifyUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}?associations=companies`;
+      const verifyResp = await fetch(verifyUrl, { headers: hsHeaders });
+
+      if (verifyResp.ok) {
+        verification = await verifyResp.json();
+        logger.log('Verification result (contact associations):', JSON.stringify(verification));
+      } else {
+        const errorText = await verifyResp.text();
+        logger.error(`Verification failed: ${errorText}`);
+      }
     }
 
     return sendResponse(200, { 
       status: 'Success', 
-      message: `Successfully set Company ${companyId} as Primary for Contact ${contactId}.` 
+      message: `Successfully set Company ${companyId} as Primary for Contact ${contactId}.`,
+      hubspotResult: result,
+      verification
     });
 
   } catch (error) {
