@@ -10,7 +10,7 @@ const sendResponse = (statusCode, body) => {
 export default async (request, context) => {
   const secretKey = process.env.HUBSPOT_WEBHOOK_SECRET;
 
-  const headerSecret = request.headers['x-hubspot-secret'];
+  const headerSecret = request.headers.get('x-hubspot-secret');
 
   console.log('Header received:', JSON.stringify(headerSecret));
   console.log('Env secret:', JSON.stringify(secretKey));
