@@ -83,21 +83,12 @@ export default async (request, context) => {
     const companyId = company.id;
     logger.log(`Company found: ${companyId}`);
 
-    const PRIMARY_CONTACT_TO_COMPANY_TYPE_ID = 1;
-    logger.log(`Associating contact ${contactId} with company ${companyId} as PRIMARY (typeId=${PRIMARY_CONTACT_TO_COMPANY_TYPE_ID})`);
+    const associationUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}/associations/companies/${companyId}/primary`;
+    logger.log(`Associating contact ${contactId} with company ${companyId} as PRIMARY (v3 endpoint)`);
 
-    const associationResp = await fetch('https://api.hubapi.com/crm/v4/associations/CONTACTS/COMPANIES/batch/create', {
-      method: 'POST',
-      headers: hsHeaders,
-      body: JSON.stringify({
-        inputs: [
-          {
-            from: { id: contactId },
-            to: { id: companyId },
-            type: PRIMARY_CONTACT_TO_COMPANY_TYPE_ID
-          }
-        ]
-      })
+    const associationResp = await fetch(associationUrl, {
+      method: 'PUT',
+      headers: hsHeaders
     });
 
     if (!associationResp.ok) {
@@ -106,11 +97,7 @@ export default async (request, context) => {
       throw new Error(`HubSpot Primary Association API failed: ${errorText}`);
     }
 
-    const result = await associationResp.json();
-    logger.log('Association API result:', JSON.stringify(result));
-
     let verification = null;
-
     if (isTestingMode) {
       const verifyUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}?associations=companies`;
       const verifyResp = await fetch(verifyUrl, { headers: hsHeaders });
@@ -127,7 +114,6 @@ export default async (request, context) => {
     return sendResponse(200, { 
       status: 'Success', 
       message: `Successfully set Company ${companyId} as Primary for Contact ${contactId}.`,
-      hubspotResult: result,
       verification
     });
 
