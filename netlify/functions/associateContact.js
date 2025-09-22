@@ -80,11 +80,14 @@ export default async (request, context) => {
         message: `No company found with Dealer Number: ${contactDealerNumber}. Contact ${contactId} was not associated.` 
       });
     }
+
     const companyId = company.id;
     logger.log(`Company found: ${companyId}`);
 
-    const associationUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}/associations/companies/${companyId}/primary`;
-    logger.log(`Associating contact ${contactId} with company ${companyId} as PRIMARY (v3 endpoint)`);
+    const PRIMARY_ASSOCIATION_TYPE_ID = 1;
+
+    const associationUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}/associations/companies/${companyId}/${PRIMARY_ASSOCIATION_TYPE_ID}`;
+    logger.log(`Associating contact ${contactId} with company ${companyId} as PRIMARY`);
 
     const associationResp = await fetch(associationUrl, {
       method: 'PUT',
