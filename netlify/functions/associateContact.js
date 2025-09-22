@@ -7,17 +7,10 @@ const sendResponse = (statusCode, body) => {
 
 export default async (request, context) => {
   const secretKey = process.env.HUBSPOT_WEBHOOK_SECRET;
-
   const headerSecret = request.headers.get('x-hubspot-secret');
 
-  console.log('Header received:', JSON.stringify(headerSecret));
-  console.log('Env secret:', JSON.stringify(secretKey));
-
   if (!headerSecret || headerSecret.trim() !== secretKey.trim()) {
-    return sendResponse(401, {
-      error: 'Unauthorized',
-      detail: { headerSecret, envSecret: secretKey }
-    });
+    return sendResponse(401, { error: 'Unauthorized' });
   }
 
   const body = await request.json();
@@ -77,21 +70,47 @@ export default async (request, context) => {
     }
     const companyId = company.id;
 
-    const associationUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}/associations/company/${companyId}/contact_to_company`;
-    
-    const associationResp = await fetch(associationUrl, {
-      method: 'PUT',
+    const assocTypesResp = await fetch('https://api.hubapi.com/crm/v4/associations/CONTACTS/COMPANIES/labels', {
+      method: 'GET',
       headers: hsHeaders
+    });
+
+    if (!assocTypesResp.ok) {
+      const errorText = await assocTypesResp.text();
+      throw new Error(`Failed to fetch association types: ${errorText}`);
+    }
+
+    const assocTypesData = await assocTypesResp.json();
+    const primaryAssocType = assocTypesData.results.find(t =>
+      t.name.toLowerCase().includes('primary')
+    );
+
+    if (!primaryAssocType) {
+      throw new Error('Could not find Primary association type ID for contacts → companies');
+    }
+
+    const associationResp = await fetch('https://api.hubapi.com/crm/v4/associations/CONTACTS/COMPANIES/batch/create', {
+      method: 'POST',
+      headers: hsHeaders,
+      body: JSON.stringify({
+        inputs: [
+          {
+            from: { id: contactId },
+            to: { id: companyId },
+            type: primaryAssocType.id
+          }
+        ]
+      })
     });
 
     if (!associationResp.ok) {
       const errorText = await associationResp.text();
-      throw new Error(`HubSpot Association API failed: ${errorText}`);
+      throw new Error(`HubSpot Primary Association API failed: ${errorText}`);
     }
 
     return sendResponse(200, { 
       status: 'Success', 
-      message: `Successfully associated Contact ${contactId} with Company ${companyId}.` 
+      message: `Successfully set Company ${companyId} as Primary for Contact ${contactId}.` 
     });
 
   } catch (error) {

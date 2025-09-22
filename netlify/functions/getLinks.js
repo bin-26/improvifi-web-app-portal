@@ -1,5 +1,3 @@
-const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
-
 // ======================     LOGGING CONTROL     ======================
 const isTestingMode = process.env.TESTING === 'true';
 
