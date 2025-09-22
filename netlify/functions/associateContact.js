@@ -9,13 +9,25 @@ const sendResponse = (statusCode, body) => {
 
 export default async (request, context) => {
   const secretKey = process.env.HUBSPOT_WEBHOOK_SECRET;
-  if (request.headers['x-hubspot-secret'] !== secretKey) {
-    return sendResponse(401, { error: 'Unauthorized' });
+
+  const headerSecret = request.headers['x-hubspot-secret'];
+
+  console.log('Header received:', JSON.stringify(headerSecret));
+  console.log('Env secret:', JSON.stringify(secretKey));
+
+  if (!headerSecret || headerSecret.trim() !== secretKey.trim()) {
+    return sendResponse(401, {
+      error: 'Unauthorized',
+      detail: {
+        headerSecret,
+        envSecret: secretKey
+      }
+    });
   }
 
   const body = await request.json();
   const event = body[0];
-  
+
   const contactId = event.objectId;
   const contactDealerNumber = event.properties.dealer_number;
 
