@@ -1,5 +1,3 @@
-const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
-
 const sendResponse = (statusCode, body) => {
   return new Response(JSON.stringify(body), {
     status: statusCode,
@@ -18,10 +16,7 @@ export default async (request, context) => {
   if (!headerSecret || headerSecret.trim() !== secretKey.trim()) {
     return sendResponse(401, {
       error: 'Unauthorized',
-      detail: {
-        headerSecret,
-        envSecret: secretKey
-      }
+      detail: { headerSecret, envSecret: secretKey }
     });
   }
 
