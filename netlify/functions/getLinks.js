@@ -89,30 +89,31 @@ export default async (request, context) => {
       'Content-Type': 'application/json'
     };
 
+    // ================================   Find Contact ID by Email   ================================
+    logger.log(`STEP 1: Attempting to find contact ID for email: ${email}`);
+
     const contactSearchPayload = {
       filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: email }] }],
-      properties: ['firstname', 'lastname'],
-      associations: ['company']
+      properties: ['firstname', 'lastname']
     };
 
     logger.log(`Attempting to lookup contact with email: ${email}`);
 
-    // Get the contact by email
-    const contactResponse = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/search`, {
+    const contactSearchResponse = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/search`, {
       method: 'POST',
       headers: hubspotApiHeaders,
       body: JSON.stringify(contactSearchPayload)
     });
 
-    if (!contactResponse.ok) {
-      const errorText = await contactResponse.text();
-      logger.error(`HubSpot API error for email ${email}: Status ${contactResponse.status}, Response: ${errorText}`);
-      throw new Error(`HubSpot API error: ${contactResponse.status}. Details: ${errorText}`);
+    if (!contactSearchResponse.ok) {
+      const errorText = await contactSearchResponse.text();
+      logger.error(`HubSpot API error for email ${email}: Status ${contactSearchResponse.status}, Response: ${errorText}`);
+      throw new Error(`HubSpot API error: ${contactSearchResponse.status}. Details: ${errorText}`);
     }
 
-    const contactData = await contactResponse.json();
-    logger.log('Contact lookup response:', JSON.stringify(contactData));
-    const contact = contactData.results?.[0];
+    const contactSearchData = await contactSearchResponse.json();
+    logger.log('Contact lookup response:', JSON.stringify(contactSearchData));
+    const contact = contactSearchData.results?.[0];
 
     if (!contact) {
       logger.log(`No contact found for email: ${email}`);
@@ -129,8 +130,23 @@ export default async (request, context) => {
     const userName = contact.properties.firstname || 'User';
     const userLastName = contact.properties.lastname || '';
 
-    // Get associated company Id
-    const companyId = contact.associations?.companies?.results?.[0]?.id;
+    // =========================   Get Contact-Company Associations Directly   ==========================
+    const contactId = contact.id;
+    logger.log(`STEP 2: Fetching associations directly for contact ID: ${contactId}`);
+    
+    const directContactResponse = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${contactId}?associations=company`, {
+      method: 'GET',
+      headers: hubspotApiHeaders
+    });
+
+    if (!directContactResponse.ok) {
+        const errorText = await directContactResponse.text();
+        logger.error(`HubSpot API direct GET error for contact ID ${contactId}: Status ${directContactResponse.status}, Response: ${errorText}`);
+        throw new Error(`HubSpot API error: ${directContactResponse.status}. Details: ${errorText}`);
+    }
+
+    const detailedContactData = await directContactResponse.json();
+    const companyId = detailedContactData.associations?.companies?.results?.[0]?.id;
     
     // Block users with no company ID
     if (!companyId) {
@@ -144,6 +160,9 @@ export default async (request, context) => {
       });
     }
     
+    // ============================   STEP 3: Fetch Company Properties   ============================
+    logger.log(`STEP 3: Fetching properties for company ID: ${companyId}`);
+
     const propertiesToFetch = Object.values(outputToHubspotMap);
     const propertiesQuery = propertiesToFetch
       .map(p =>`properties=${encodeURIComponent(p)}`)
