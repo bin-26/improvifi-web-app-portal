@@ -60,8 +60,8 @@ export const handler = async (event, context) => {
         filterGroups: [{
           filters: [{
             propertyName: 'dealer_number',
-            operator: 'IN',
-            values: batchOfNumbersToTest
+            operator: 'GTE',
+            value: `${prefix}-000`
           }]
         }],
         sorts: [{
