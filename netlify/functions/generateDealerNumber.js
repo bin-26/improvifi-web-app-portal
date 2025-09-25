@@ -58,6 +58,7 @@ export const handler = async (event, context) => {
     const usedNumbers = new Set();
     const BATCH_SIZE = 100;
     const MAX_DEALER_NUMBER = 999;
+    const RATE_LIMIT_DELAY_MS = 300;
 
     for (let i = 1; i <= MAX_DEALER_NUMBER; i += BATCH_SIZE) {
       const batchOfNumbersToTest = [];
@@ -93,6 +94,8 @@ export const handler = async (event, context) => {
       if (searchData.results) {
         searchData.results.forEach(company => usedNumbers.add(company.properties.dealer_number));
       }
+
+      await new Promise (resolve => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
     }
 
     // --- 4. Find the smallest available number locally --- 
