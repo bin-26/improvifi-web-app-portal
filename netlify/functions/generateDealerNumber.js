@@ -16,59 +16,35 @@ const headers = {
 
 export const handler = async (event, context) => {
   try {
-    // Handle OPTIONS preflight request explicitly
     if (event.httpMethod === 'OPTIONS') {
-      return {
-        statusCode: 204,
-        headers: headers,
-        body: '',
-      };
+      return { statusCode: 204, headers, body: '' };
     }
 
-    // --- Security and Setup ---
     const providedApiKey = event.headers['x-api-key'];
     const serverApiKey = process.env.GENERATOR_KEY;
     if (!providedApiKey || providedApiKey !== serverApiKey) {
-      return {
-        statusCode: 401,
-        headers: headers,
-        body: JSON.stringify({ error: 'Unauthorized' }),
-      };
+      return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
     }
 
     const token = process.env.HUBSPOT_API_KEY;
     if (!token) {
-      return {
-        statusCode: 500,
-        headers: headers,
-        body: JSON.stringify({ error: 'Server configuration error: HubSpot token missing.' }),
-      };
+      return { statusCode: 500, headers: headers, body: JSON.stringify({ error: 'Server configuration error: HubSpot token missing.' }) };
     }
     
     const hsHeaders = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
     
     if (!event.body) {
-      return {
-        statusCode: 400,
-        headers: headers,
-        body: JSON.stringify({ error: 'Request body is missing.' }),
-      };
+      return { statusCode: 400, headers: headers, body: JSON.stringify({ error: 'Request body is missing.' }) };
     }
     const { prefix } = JSON.parse(event.body);
 
     const allowedPrefixes = ['01', '02', '03', '04'];
     if (!prefix || !allowedPrefixes.includes(prefix)) {
-      return {
-        statusCode: 400,
-        headers: headers,
-        body: JSON.stringify({ error: 'Invalid or missing prefix.' }),
-      };
+      return { statusCode: 400, headers: headers, body: JSON.stringify({ error: 'Invalid or missing prefix.' }) };
     }
 
     logger.log(`Searching for the smallest available dealer number with prefix: ${prefix}`);
     
-    // --- Main Logic ---
-    const usedNumbers = new Set();
     const BATCH_SIZE = 100;
     const MAX_DEALER_NUMBER = 999;
     const RATE_LIMIT_DELAY_MS = 300;
@@ -76,6 +52,7 @@ export const handler = async (event, context) => {
     for (let i = 1; i <= MAX_DEALER_NUMBER; i += BATCH_SIZE) {
       const batchOfNumbersToTest = [];
       const end = Math.min(i + BATCH_SIZE - 1, MAX_DEALER_NUMBER);
+      const currentBatchSize = end - i + 1;
       
       for (let j = i; j <= end; j++) {
         const numberPart = String(j).padStart(3, '0');
@@ -99,39 +76,26 @@ export const handler = async (event, context) => {
       }
 
       const searchData = await searchResp.json();
+      const usedNumbersInBatch = new Set();
+
       if (searchData.results) {
-        searchData.results.forEach(company => usedNumbers.add(company.properties.dealer_number));
+        searchData.results.forEach(company => usedNumbersInBatch.add(company.properties.dealer_number));
       }
       
+      if (usedNumbersInBatch.size < currentBatchSize) {
+        for (const numToTest of batchOfNumbersToTest) {
+          logger.log(`Found available number: ${numToTest} (in an early batch)`)
+          return { statusCode: 200, headers, body: JSON.stringify({ dealerNumber: numToTest }) };
+        }
+      }
+
       await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
     }
 
-    for (let i = 1; i <= MAX_DEALER_NUMBER; i++) {
-      const numberPart = String(i).padStart(3, '0');
-      const dealerNumberToTest = `${prefix}-${numberPart}`;
-
-      if (!usedNumbers.has(dealerNumberToTest)) {
-        logger.log(`Found available number: ${dealerNumberToTest}`);
-        return {
-          statusCode: 200,
-          headers: headers,
-          body: JSON.stringify({ dealerNumber: dealerNumberToTest }),
-        };
-      }
-    }
-
-    return {
-      statusCode: 409,
-      headers: headers,
-      body: JSON.stringify({ error: `All dealer numbers for prefix '${prefix}' are in use.` }),
-    };
+    return { statusCode: 409, headers, body: JSON.stringify({ error: `All dealer numbers for prefix '${prefix}' are in use.` }) };
 
   } catch (error) {
     logger.error('Function execution failed:', error.stack || error);
-    return {
-      statusCode: 500,
-      headers: headers,
-      body: JSON.stringify({ error: 'An internal server error occurred.' }),
-    };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'An internal server error occurred.' }) };
   }
 };
