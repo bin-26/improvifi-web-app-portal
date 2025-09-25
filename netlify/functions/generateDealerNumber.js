@@ -89,8 +89,10 @@ export const handler = async (event, context) => {
       });
 
       if (!searchResp.ok) {
-        throw new Error(`HubSpot API search failed: ${await searchResp.text()}`);
-      }
+        const errorText = await searchResp.text();
+        logger.error(`HubSpot API search failed: ${errorText}`);
+        return sendResponse(500, { error: `HubSpot API search failed: ${errorText}` });
+}
 
       const searchData = await searchResp.json();
       if (searchData.results) {
