@@ -38,7 +38,7 @@ export const handler = async (event, context) => {
     }
     const { prefix } = JSON.parse(event.body);
 
-    const allowedPrefixes = ['01', '02', '03', '04'];
+    const allowedPrefixes = ['00', '01', '02', '03', '04'];
     if (!prefix || !allowedPrefixes.includes(prefix)) {
       return { statusCode: 400, headers: headers, body: JSON.stringify({ error: 'Invalid or missing prefix.' }) };
     }
