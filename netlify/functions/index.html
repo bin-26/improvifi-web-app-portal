@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dealer Number Generator</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 2rem 3rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+        }
+        h1 {
+            color: #1a202c;
+            margin-bottom: 2rem;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 6px;
+            border: 1px solid #cbd5e0;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #2d3748;
+            color: white;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #4a5568;
+        }
+        #result {
+            margin-top: 2rem;
+            padding: 1rem;
+            border-radius: 6px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .success { background-color: #c6f6d5; color: #2f855a; }
+        .error { background-color: #fed7d7; color: #c53030; }
+        .loading { background-color: #e2e8f0; color: #4a5568; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Dealer Number Generator</h1>
+    <form id="generator-form">
+        <div class="form-group">
+            <label for="prefix-select">Select a Prefix:</label>
+            <select id="prefix-select">
+                <option value="01">01</option>
+                <option value="02">02</option>
+                <option value="03">03</option>
+                <option value="04">04</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="api-key-input">API Secret Key:</label>
+            <input type="password" id="api-key-input" placeholder="Enter the secret key" required>
+        </div>
+        <button type="submit" id="generate-btn">Generate Number</button>
+    </form>
+    <div id="result"></div>
+</div>
+
+<script>
+    const form = document.getElementById('generator-form');
+    const generateBtn = document.getElementById('generate-btn');
+    const prefixSelect = document.getElementById('prefix-select');
+    const apiKeyInput = document.getElementById('api-key-input');
+    const resultDiv = document.getElementById('result');
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const prefix = prefixSelect.value;
+        const apiKey = apiKeyInput.value;
+        const functionUrl = '/.netlify/functions/generateDealerNumber';
+
+        // Set loading state
+        resultDiv.textContent = 'Searching...';
+        resultDiv.className = 'loading';
+        generateBtn.disabled = true;
+
+        try {
+            const response = await fetch(functionUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': apiKey
+                },
+                body: JSON.stringify({ prefix: prefix })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'An unknown error occurred.');
+            }
+
+            resultDiv.textContent = `Available Number: ${data.dealerNumber}`;
+            resultDiv.className = 'success';
+
+        } catch (error) {
+            resultDiv.textContent = `Error: ${error.message}`;
+            resultDiv.className = 'error';
+        } finally {
+            generateBtn.disabled = false;
+        }
+    });
+</script>
+
+</body>
+</html>
