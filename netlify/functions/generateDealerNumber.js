@@ -60,9 +60,8 @@ export const handler = async (event, context) => {
         filterGroups: [{
           filters: [{
             propertyName: 'dealer_number',
-            operator: 'BETWEEN',
-            value: `${prefix}-000`,
-            highValue: `${prefix}-${MAX_DEALER_NUMBER}`
+            operator: 'CONTAINS_TOKEN',
+            value: `${prefix}-`
           }]
         }],
         sorts: [{
@@ -83,6 +82,12 @@ export const handler = async (event, context) => {
 
       const searchData = await searchResp.json();
       const results = searchData.results || [];
+
+      if (results.length === 0 && lastSeenNumber === 0) {
+        const result = `${prefix}-001`;
+        logger.log(`No existing dealer numbers found. Starting fresh at: ${result}`);
+        return { statusCode: 200, headers, body: JSON.stringify({ dealerNumber: result }) };
+      }
 
       for (const company of results) {
         const currentNum = parseInt(company.properties.dealer_number.split('-')[1], 10);
@@ -111,7 +116,7 @@ export const handler = async (event, context) => {
       const result = `${prefix}-${String(nextNum).padStart(3, '0')}`;
       logger.log(`Found available number (end of all results): ${result}`);
       return { statusCode: 200, headers, body: JSON.stringify({ dealerNumber: result }) };
-      
+
     } else {
       logger.log(`All numbers up to ${MAX_DEALER_NUMBER} are in use for prefix '${prefix}'.`);
       return { statusCode: 409, headers, body: JSON.stringify({ error: `All dealer numbers for prefix '${prefix}' are in use.` }) };
