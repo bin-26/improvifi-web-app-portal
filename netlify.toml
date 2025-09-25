@@ -2,4 +2,4 @@
     functions = "netlify/functions"
 
 [functions."checkMismatchedContacts"]
-    schedule = "26 13 * * *"
+    schedule = "0 6 * * *"
