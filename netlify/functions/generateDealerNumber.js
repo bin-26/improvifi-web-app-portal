@@ -1,12 +1,13 @@
 const sendResponse = (statusCode, body) => {
-  return new Response(JSON.stringify(body), {
+  return {
     status: statusCode,
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': process.env.URL,
       'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
-    }
-  });
+    },
+    body: body ? JSON.stringify(body) : ''
+  };
 };
 
 // ======================     LOGGING CONTROL     ======================
@@ -70,10 +71,11 @@ export const handler = async (event, context) => {
       }
 
       const searchPayload = {
+        limit: BATCH_SIZE,
         filterGroups: [{
           filters: [{
             propertyName: 'dealer_number',
-            operator: 'IN', // Use the valid 'IN' operator
+            operator: 'IN',
             values: batchOfNumbersToTest
           }]
         }],
