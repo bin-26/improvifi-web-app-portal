@@ -37,6 +37,10 @@ export const handler = async (event, context) => {
             propertyName: 'is_dealer_number_matching',
             operator: 'NEQ',
             value: 'true'
+          },
+          {
+          propertyName: 'dealer_number',
+          operator: 'HAS_PROPERTY'
           }]
         }]
       };
