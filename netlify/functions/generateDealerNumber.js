@@ -27,7 +27,7 @@ export const handler = async (event, context) => {
 
     // --- Security and Setup ---
     const providedApiKey = event.headers['x-api-key'];
-    const serverApiKey = process.env.API_SECRET_KEY;
+    const serverApiKey = process.env.GENERATOR_KEY;
     if (!providedApiKey || providedApiKey !== serverApiKey) {
       return {
         statusCode: 401,
@@ -71,7 +71,7 @@ export const handler = async (event, context) => {
     const usedNumbers = new Set();
     const BATCH_SIZE = 100;
     const MAX_DEALER_NUMBER = 999;
-    const RATE_LIMIT_DELAY_MS = 150;
+    const RATE_LIMIT_DELAY_MS = 300;
 
     for (let i = 1; i <= MAX_DEALER_NUMBER; i += BATCH_SIZE) {
       const batchOfNumbersToTest = [];
