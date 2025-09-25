@@ -60,8 +60,9 @@ export const handler = async (event, context) => {
         filterGroups: [{
           filters: [{
             propertyName: 'dealer_number',
-            operator: 'GTE',
-            value: `${prefix}-000`
+            operator: 'BETWEEN',
+            value: `${prefix}-000`,
+            highValue: `${prefix}-${MAX_DEALER_NUMBER}`
           }]
         }],
         sorts: [{
@@ -110,6 +111,7 @@ export const handler = async (event, context) => {
       const result = `${prefix}-${String(nextNum).padStart(3, '0')}`;
       logger.log(`Found available number (end of all results): ${result}`);
       return { statusCode: 200, headers, body: JSON.stringify({ dealerNumber: result }) };
+      
     } else {
       logger.log(`All numbers up to ${MAX_DEALER_NUMBER} are in use for prefix '${prefix}'.`);
       return { statusCode: 409, headers, body: JSON.stringify({ error: `All dealer numbers for prefix '${prefix}' are in use.` }) };
