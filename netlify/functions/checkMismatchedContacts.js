@@ -35,8 +35,8 @@ export const handler = async (event, context) => {
         filterGroups: [{
           filters: [{
             propertyName: 'is_dealer_number_matching',
-            operator: 'EQ',
-            value: 'false'
+            operator: 'NEQ',
+            value: 'true'
           }]
         }]
       };
