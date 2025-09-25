@@ -55,10 +55,10 @@ export const handler = async (event, context) => {
             hsHeaders: hsHeaders
         });
 
-        await new Promise(resolve => setTimeout(resolve, 250));
-
       } catch (innerError) {
         logger.error(`[Worker] Failed to process contact ${contactId} within batch. Error:`, innerError.message || innerError);
+      } finally {
+        await new Promise(resolve => setTimeout(resolve, 1000))
       }
     }
     logger.log(`[Worker] Successfully finished processing batch of ${contactIds.length} contacts.`);
