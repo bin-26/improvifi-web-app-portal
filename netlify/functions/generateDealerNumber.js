@@ -49,7 +49,7 @@ export const handler = async (event, context) => {
     const MAX_DEALER_NUMBER = 999;
     const RATE_LIMIT_DELAY_MS = 300;
     
-    let lastSeenNumber = 0;
+    let lastSeenNumber = -1;
     let after = null;
 
     do {
