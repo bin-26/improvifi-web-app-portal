@@ -45,24 +45,29 @@ export const handler = async (event, context) => {
 
     logger.log(`Searching for the smallest available dealer number with prefix: ${prefix}`);
     
-    const BATCH_SIZE = 100;
+    const PAGE_LIMIT = 100;
     const MAX_DEALER_NUMBER = 999;
     const RATE_LIMIT_DELAY_MS = 300;
+    
+    let lastSeenNumber = 0;
+    let after = null;
 
-    for (let i = 1; i <= MAX_DEALER_NUMBER; i += BATCH_SIZE) {
-      const batchOfNumbersToTest = [];
-      const end = Math.min(i + BATCH_SIZE - 1, MAX_DEALER_NUMBER);
-      const currentBatchSize = end - i + 1;
-      
-      for (let j = i; j <= end; j++) {
-        const numberPart = String(j).padStart(3, '0');
-        batchOfNumbersToTest.push(`${prefix}-${numberPart}`);
-      }
-
+    do {
       const searchPayload = {
-        limit: BATCH_SIZE,
-        filterGroups: [{ filters: [{ propertyName: 'dealer_number', operator: 'IN', values: batchOfNumbersToTest }] }],
-        properties: ['dealer_number']
+        limit: PAGE_LIMIT,
+        after: after,
+        properties: ['dealer_number'],
+        filterGroups: [{
+          filters: [{
+            propertyName: 'dealer_number',
+            operator: 'IN',
+            values: batchOfNumbersToTest
+          }]
+        }],
+        sorts: [{
+          "propertyName": "dealer_number",
+          "direction": "ASCENDING"
+        }]
       };
 
       const searchResp = await fetch('https://api.hubapi.com/crm/v3/objects/companies/search', {
@@ -76,23 +81,39 @@ export const handler = async (event, context) => {
       }
 
       const searchData = await searchResp.json();
-      const usedNumbersInBatch = new Set();
+      const results = searchData.results || [];
 
-      if (searchData.results) {
-        searchData.results.forEach(company => usedNumbersInBatch.add(company.properties.dealer_number));
-      }
-      
-      if (usedNumbersInBatch.size < currentBatchSize) {
-        for (const numToTest of batchOfNumbersToTest) {
-          logger.log(`Found available number: ${numToTest} (in an early batch)`)
-          return { statusCode: 200, headers, body: JSON.stringify({ dealerNumber: numToTest }) };
+      for (const company of results) {
+        const currentNum = parseInt(company.properties.dealer_number.split('-')[1], 10);
+
+        if (currentNum > lastSeenNumber + 1) {
+          const smallestUnused = lastSeenNumber + 1;
+          const result = `${prefix}-${String(smallestUnused).padStart(3, '0')}`;
+          logger.log(`Found available number (gap in page): ${result}`);
+          return { statusCode: 200, headers, body: JSON.stringify({ dealerNumber: result }) };
         }
+
+        lastSeenNumber = currentNum;
       }
 
-      await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
-    }
+      if (results.length < PAGE_LIMIT) break;
 
-    return { statusCode: 409, headers, body: JSON.stringify({ error: `All dealer numbers for prefix '${prefix}' are in use.` }) };
+      after = searchData.paging?.next?.after;
+      
+      if (after) await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
+
+    } while (after);
+
+    const nextNum = lastSeenNumber + 1;
+    
+    if (nextNum <= MAX_DEALER_NUMBER) {
+      const result = `${prefix}-${String(nextNum).padStart(3, '0')}`;
+      logger.log(`Found available number (end of all results): ${result}`);
+      return { statusCode: 200, headers, body: JSON.stringify({ dealerNumber: result }) };
+    } else {
+      logger.log(`All numbers up to ${MAX_DEALER_NUMBER} are in use for prefix '${prefix}'.`);
+      return { statusCode: 409, headers, body: JSON.stringify({ error: `All dealer numbers for prefix '${prefix}' are in use.` }) };
+    }
 
   } catch (error) {
     logger.error('Function execution failed:', error.stack || error);
