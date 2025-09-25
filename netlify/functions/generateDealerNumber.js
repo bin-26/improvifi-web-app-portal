@@ -1,15 +1,3 @@
-const sendResponse = (statusCode, body) => {
-  return {
-    status: statusCode,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': process.env.URL,
-      'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
-    },
-    body: body ? JSON.stringify(body) : ''
-  };
-};
-
 // ======================     LOGGING CONTROL     ======================
 const isTestingMode = process.env.TESTING === 'true';
 
@@ -19,47 +7,71 @@ const logger = {
 };
 // =====================================================================
 
+const headers = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
+};
+
 export const handler = async (event, context) => {
-  if (event.httpMethod === 'OPTIONS') { return sendResponse(204, null); }
-
-  // --- 1. Security Check ---
-  const providedApiKey = event.headers['x-api-key'];
-  const serverApiKey = process.env.GENERATOR_KEY;
-
-  if (!providedApiKey || providedApiKey !== serverApiKey) {
-    logger.error('Unauthorized access attempt to generateDealerNumber.');
-    return sendResponse(401, { error: 'Unauthorized' });
-  }
-
-  const token = process.env.HUBSPOT_API_KEY;
-
-  if (!token) {
-    logger.error('Server configuration error: HubSpot token missing.');
-    return sendResponse(500, { error: 'Server configuration error: HubSpot token missing.' });
-  }
-  
-  const hsHeaders = {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
-  };
-
   try {
+    // Handle OPTIONS preflight request explicitly
+    if (event.httpMethod === 'OPTIONS') {
+      return {
+        statusCode: 204,
+        headers: headers,
+        body: '',
+      };
+    }
+
+    // --- Security and Setup ---
+    const providedApiKey = event.headers['x-api-key'];
+    const serverApiKey = process.env.API_SECRET_KEY;
+    if (!providedApiKey || providedApiKey !== serverApiKey) {
+      return {
+        statusCode: 401,
+        headers: headers,
+        body: JSON.stringify({ error: 'Unauthorized' }),
+      };
+    }
+
+    const token = process.env.HUBSPOT_API_KEY;
+    if (!token) {
+      return {
+        statusCode: 500,
+        headers: headers,
+        body: JSON.stringify({ error: 'Server configuration error: HubSpot token missing.' }),
+      };
+    }
+    
+    const hsHeaders = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+    
+    if (!event.body) {
+      return {
+        statusCode: 400,
+        headers: headers,
+        body: JSON.stringify({ error: 'Request body is missing.' }),
+      };
+    }
     const { prefix } = JSON.parse(event.body);
 
-    // --- 2. Input Validation ---
     const allowedPrefixes = ['01', '02', '03', '04'];
     if (!prefix || !allowedPrefixes.includes(prefix)) {
-      return sendResponse(400, { error: 'Invalid or missing prefix. Must be one of: 01, 02, 03, 04.' });
+      return {
+        statusCode: 400,
+        headers: headers,
+        body: JSON.stringify({ error: 'Invalid or missing prefix.' }),
+      };
     }
 
     logger.log(`Searching for the smallest available dealer number with prefix: ${prefix}`);
-
-    // --- 3. Efficiently fetch ALL existing dealer numbers for this prefix ---
-
+    
+    // --- Main Logic ---
     const usedNumbers = new Set();
     const BATCH_SIZE = 100;
     const MAX_DEALER_NUMBER = 999;
-    const RATE_LIMIT_DELAY_MS = 300;
+    const RATE_LIMIT_DELAY_MS = 150;
 
     for (let i = 1; i <= MAX_DEALER_NUMBER; i += BATCH_SIZE) {
       const batchOfNumbersToTest = [];
@@ -72,13 +84,7 @@ export const handler = async (event, context) => {
 
       const searchPayload = {
         limit: BATCH_SIZE,
-        filterGroups: [{
-          filters: [{
-            propertyName: 'dealer_number',
-            operator: 'IN',
-            values: batchOfNumbersToTest
-          }]
-        }],
+        filterGroups: [{ filters: [{ propertyName: 'dealer_number', operator: 'IN', values: batchOfNumbersToTest }] }],
         properties: ['dealer_number']
       };
 
@@ -89,35 +95,43 @@ export const handler = async (event, context) => {
       });
 
       if (!searchResp.ok) {
-        const errorText = await searchResp.text();
-        logger.error(`HubSpot API search failed: ${errorText}`);
-        return sendResponse(500, { error: `HubSpot API search failed: ${errorText}` });
-}
+        throw new Error(`HubSpot API search failed: ${await searchResp.text()}`);
+      }
 
       const searchData = await searchResp.json();
       if (searchData.results) {
         searchData.results.forEach(company => usedNumbers.add(company.properties.dealer_number));
       }
-
-      await new Promise (resolve => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
+      
+      await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
     }
 
-    // --- 4. Find the smallest available number locally --- 
     for (let i = 1; i <= MAX_DEALER_NUMBER; i++) {
       const numberPart = String(i).padStart(3, '0');
       const dealerNumberToTest = `${prefix}-${numberPart}`;
 
       if (!usedNumbers.has(dealerNumberToTest)) {
         logger.log(`Found available number: ${dealerNumberToTest}`);
-        return sendResponse(200, { dealerNumber: dealerNumberToTest });
+        return {
+          statusCode: 200,
+          headers: headers,
+          body: JSON.stringify({ dealerNumber: dealerNumberToTest }),
+        };
       }
     }
 
-    // --- 5. If the loop completes, all numbers are taken ---
-    return sendResponse(409, { error: `All dealer numbers for prefix '${prefix}' are in use.` });
+    return {
+      statusCode: 409,
+      headers: headers,
+      body: JSON.stringify({ error: `All dealer numbers for prefix '${prefix}' are in use.` }),
+    };
 
   } catch (error) {
     logger.error('Function execution failed:', error.stack || error);
-    return sendResponse(500, { error: 'An internal server error occurred.' });
+    return {
+      statusCode: 500,
+      headers: headers,
+      body: JSON.stringify({ error: 'An internal server error occurred.' }),
+    };
   }
 };
