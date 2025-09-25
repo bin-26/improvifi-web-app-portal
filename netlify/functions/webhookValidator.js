@@ -1,6 +1,6 @@
 import { createHmac } from 'crypto';
 
-class WebhookValidationError extends Error {
+export class WebhookValidationError extends Error {
   constructor(message) {
     super(message);
     this.name = 'WebhookValidationError';
