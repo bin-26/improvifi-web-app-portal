@@ -124,9 +124,20 @@ export default async (request, context) => {
       });
     }
 
-    // Get user's name for welcome message
     const userName = contact.properties.firstname || 'User';
     const userLastName = contact.properties.lastname || '';
+
+    const contactData = extractHubSpotProperties(contact.properties);
+    const contactHasData = Object.keys(contact.qrCodes).length > 0 || contactData.links.link1 || contactData.links.link2 || contactData.formLink;
+
+    if (contactHasData) {
+      logger.log(`Data found directly on contact ${contact.id}. Bypassing company lookup.`);
+      return new Response(JSON.stringify({
+        userName,
+        userLastName,
+        ...contactData
+      }), { status: 200, headers: corsHeaders });
+    }
 
     // =========================   Get Contact-Company Associations Directly   ==========================
     const contactId = contact.id;
