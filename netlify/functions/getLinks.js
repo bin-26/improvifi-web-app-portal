@@ -92,7 +92,7 @@ export default async (request, context) => {
 
     const contactSearchPayload = {
       filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: email }] }],
-      properties: ['firstname', 'lastname']
+      properties: ['firstname', 'lastname', 'dealer_number', 'lifecyclestage', ...Object.values(outputToHubspotMap)]
     };
 
     logger.log(`Attempting to lookup contact with email: ${email}`);
@@ -124,11 +124,19 @@ export default async (request, context) => {
       });
     }
 
+    if (!contact.properties.dealer_number || contact.properties.lifecyclestage !== 'customer') {
+      logger.log(`access denied for ${email}: contact is missing a dealer number.`);
+      return new Response(JSON.stringify({
+        error: 'no_access',
+        message: 'Your account is not fully configured. Please contact your client success manager to complete your setup.'
+      }), { status: 403, headers: corsHeaders });
+    }
+
     const userName = contact.properties.firstname || 'User';
     const userLastName = contact.properties.lastname || '';
 
     const contactData = extractHubSpotProperties(contact.properties);
-    const contactHasData = Object.keys(contact.qrCodes).length > 0 || contactData.links.link1 || contactData.links.link2 || contactData.formLink;
+    const contactHasData = Object.keys(contactData.qrCodes).length > 0 || contactData.links.link1 || contactData.links.link2 || contactData.formLink;
 
     if (contactHasData) {
       logger.log(`Data found directly on contact ${contact.id}. Bypassing company lookup.`);
@@ -172,8 +180,7 @@ export default async (request, context) => {
     // ============================   STEP 3: Fetch Company Properties   ============================
     logger.log(`STEP 3: Fetching properties for company ID: ${companyId}`);
 
-    const propertiesToFetch = Object.values(outputToHubspotMap);
-    const propertiesQuery = propertiesToFetch
+    const propertiesQuery = Object.values(outputToHubspotMap)
       .map(p =>`properties=${encodeURIComponent(p)}`)
       .join('&');
 
