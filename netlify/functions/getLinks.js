@@ -23,32 +23,69 @@ const outputToHubspotMap = {
 // =====================================================================
 
 /* Helper to extract and format data from HubSpot properties using the map. */
-function extractHubSpotProperties(properties) {
+async function extractHubSpotProperties(properties, hubspotApiHeaders) {
   const data = { qrCodes: {}, links: {}, formLink: null };
   if (!properties) return data;
 
-  const getUrl = propValue => {
-    if (propValue && Array.isArray(propValue) && propValue.length > 0 && propValue[0].url) return propValue[0].url;
-    if (propValue && typeof propValue === 'string') return propValue;
+  const getUrl = async propValue => {
+    //Case 1: Value is a full string. Return it directly.
+    if (propValue && typeof propValue === 'string' && propValue.startsWith('http'))
+      return propValue;
+
+    //Case 2: Value is a numerical File ID string. Fetch its public URL..
+    if (propValue && typeof propValue === 'string' && /^\d+$/.test(propValue)) {
+      const fileId = propValue;
+      logger.log(`Detected File ID: ${fileId}. Fetching its public URL...`);
+      try {
+        const fileResponse = await fetch(`https://api.hubapi.com/files/v3/files/${fileId}`, {
+          headers: hubspotApiHeaders
+        });
+        if (!fileResponse.ok) {
+          logger.error(`Failed to fetch file details for ID ${fileId}. Status: ${fileResponse.status}`);
+          return null;
+        }
+        const fileData = await fileResponse.json();
+        return fileData.url;
+      } catch (e) {
+        logger.error(`Error fetching file URL for ID ${fileId}:`, e);
+        return null;
+      }
+    }
+
+    //Case 3: Value is an array of file objects from certain API responses
+    if (propValue && Array.isArray(propValue) && propValue.length > 0 && propValue[0].url) 
+      return propValue[0].url;
+
+    //Default
     return null;
   };
 
   // Process QR codes
+  const qrPromises = [];
+
   for (let i = 1; i <= 7; i++) {
     const outputKey = `qr${i}`;
     const hubspotPropName = outputToHubspotMap[outputKey];
     if (hubspotPropName && properties[hubspotPropName]) {
-      const url = getUrl(properties[hubspotPropName]);
-      if (url) data.qrCodes[outputKey] = url;
+      qrPromises.push(
+        getUrl(properties[hubspotPropName]).then(url => {
+          if (url) data.qrCodes[outputKey] = url;
+        })
+      );
     }
   }
 
-  // Process links
-  data.links.link1 = getUrl(properties[outputToHubspotMap.link1]);
-  data.links.link2 = getUrl(properties[outputToHubspotMap.link2]);
+  await Promise.all(qrPromises);
 
-  // Process the form link
-  data.formLink = getUrl(properties[outputToHubspotMap.formLink]);
+  const [link1, link2, formLink] = await Promise.all([
+    getUrl(properties[outputToHubspotMap.link1]),
+    getUrl(properties[outputToHubspotMap.link2]),
+    getUrl(properties[outputToHubspotMap.formLink])
+  ]);
+
+  data.links.link1 = link1;
+  data.links.link2 = link2;
+  data.formLink = formLink;
 
   return data;
 }
@@ -135,7 +172,7 @@ export default async (request, context) => {
     const userName = contact.properties.firstname || 'User';
     const userLastName = contact.properties.lastname || '';
 
-    const contactData = extractHubSpotProperties(contact.properties);
+    const contactData = await extractHubSpotProperties(contact.properties, hubspotApiHeaders);
     const contactHasData = Object.keys(contactData.qrCodes).length > 0 || contactData.links.link1 || contactData.links.link2 || contactData.formLink;
 
     if (contactHasData) {
@@ -195,7 +232,7 @@ export default async (request, context) => {
     }
 
     const company = await companyResponse.json();
-    const responseData = extractHubSpotProperties(company.properties);
+    const responseData = await extractHubSpotProperties(company.properties, hubspotApiHeaders);
 
     return new Response(JSON.stringify({
       userName,
