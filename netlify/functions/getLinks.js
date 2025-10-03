@@ -63,7 +63,7 @@ export default async (request, context) => {
     "Access-Control-Allow-Headers": "Content-Type, Authorization"
   };
 
-  if (request.method === 'OPTIONS') return new Response('', { status: 204, headers: corsHeaders });
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
   if (request.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: corsHeaders });
 
   try {
