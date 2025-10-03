@@ -173,16 +173,6 @@ export default async (request, context) => {
     const userLastName = contact.properties.lastname || '';
 
     const contactData = await extractHubSpotProperties(contact.properties, hubspotApiHeaders);
-    const contactHasData = Object.keys(contactData.qrCodes).length > 0 || contactData.links.link1 || contactData.links.link2 || contactData.formLink;
-
-    if (contactHasData) {
-      logger.log(`Data found directly on contact ${contact.id}. Bypassing company lookup.`);
-      return new Response(JSON.stringify({
-        userName,
-        userLastName,
-        ...contactData
-      }), { status: 200, headers: corsHeaders });
-    }
 
     // =========================   Get Contact-Company Associations Directly   ==========================
     const contactId = contact.id;
@@ -214,7 +204,7 @@ export default async (request, context) => {
       });
     }
     
-    // ============================   STEP 3: Fetch Company Properties   ============================
+    // ================================   Fetch Company Properties   ================================
     logger.log(`STEP 3: Fetching properties for company ID: ${companyId}`);
 
     const propertiesQuery = Object.values(outputToHubspotMap)
@@ -232,15 +222,30 @@ export default async (request, context) => {
     }
 
     const company = await companyResponse.json();
-    const responseData = await extractHubSpotProperties(company.properties, hubspotApiHeaders);
+    const companyData = await extractHubSpotProperties(company.properties, hubspotApiHeaders);
+
+    const finalData = {
+      qrCodes: { ...companyData.qrCodes },
+      links: { ...companyData.links },
+      formLink: contactData.formLink || companyData.formLink
+    };
+
+    for (const key in contactData.qrCodes) {
+      if (contactData.qrCodes[key])
+        finalData.qrCodes[key] = contactData.qrCodes[key];
+    }
+
+    for (const key in contactData.links) {
+      if (contactData.links[key])
+        finalData.links[key] = contactData.links[key];
+    }
 
     return new Response(JSON.stringify({
       userName,
       userLastName,
-      ...responseData
+      ...finalData
     }), { status: 200, headers: corsHeaders });
 
-    
   } catch (error) {
     logger.error('Function execution caught an error:', error.stack || error);
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
