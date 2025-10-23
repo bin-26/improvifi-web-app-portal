@@ -18,6 +18,7 @@ const outputToHubspotMap = {
   qr7: 'aven',
   link1: 'improvifi_lending',
   link2: 'foundation',
+  link3: 'improvipay',
   formLink: 'automations_form'
 };
 // =====================================================================
@@ -77,14 +78,16 @@ async function extractHubSpotProperties(properties, hubspotApiHeaders) {
 
   await Promise.all(qrPromises);
 
-  const [link1, link2, formLink] = await Promise.all([
+  const [link1, link2, link3, formLink] = await Promise.all([
     getUrl(properties[outputToHubspotMap.link1]),
     getUrl(properties[outputToHubspotMap.link2]),
+    getUrl(properties[outputToHubspotMap.link3]),
     getUrl(properties[outputToHubspotMap.formLink])
   ]);
 
   data.links.link1 = link1;
   data.links.link2 = link2;
+  data.links.link3 = link3;
   data.formLink = formLink;
 
   return data;
