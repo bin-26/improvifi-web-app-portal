@@ -1,15 +1,14 @@
 import memberstackAdmin from "@memberstack/admin";
 
 function getCookie(cookieString, name) {
-  if (!cookieString) {
-    return null;
-  }
-  const nameEQ = name + "=";
-  const ca = cookieString.split(';');
-  for(let i = 0; i < ca.length; i++) {
-    let c = ca[i];
-    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-    if (ca.indexOf(nameEQ) === 0) return ca.substring(nameEQ.length, ca.length);
+  if (!cookieString) return null;
+  const nameEQ = `${name}=`;
+  const parts = cookieString.split(';');
+  for (let i = 0; i < parts.length; i++) {
+    let c = parts[i].trim();
+    if (c.indexOf(nameEQ) === 0) {
+      return c.substring(nameEQ.length);
+    }
   }
   return null;
 }
