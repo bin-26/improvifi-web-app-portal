@@ -1,5 +1,19 @@
 import memberstackAdmin from "@memberstack/admin";
 
+function getCookie(cookieString, name) {
+  if (!cookieString) {
+    return null;
+  }
+  const nameEQ = name + "=";
+  const ca = cookieString.split(';');
+  for(let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+    if (ca.indexOf(nameEQ) === 0) return ca.substring(nameEQ.length, ca.length);
+  }
+  return null;
+}
+
 // ======================     LOGGING CONTROL     ======================
 const isTestingMode = process.env.TESTING === 'true';
 
@@ -17,12 +31,11 @@ export async function requireMember(eventOrRequest) {
       ? Object.fromEntries(eventOrRequest.headers)
       : eventOrRequest.headers || {};
 
-  const auth = headers.authorization || headers.Authorization || "";
-  if (!auth.startsWith("Bearer ")) {
-    return { error: { status: 401, body: { error: "Missing token" } } };
-  }
+  const token = getCookie(headers.cookie, "_ms-mid"); 
 
-  const token = auth.slice("Bearer ".length);
+  if (!token) {
+    return { error: { status: 401, body: { error: "Missing authentication cookie" } } };
+  }
 
   const appAudience = process.env.MEMBERSTACK_APP_ID;
 
