@@ -1,3 +1,5 @@
+import { requireMember } from './verifyMember'
+
 // ======================     LOGGING CONTROL     ======================
 const isTestingMode = process.env.TESTING === 'true';
 
@@ -106,6 +108,10 @@ export default async (request, context) => {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
   if (request.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: corsHeaders });
 
+  const { member, error } = await requireMember(request);
+  if (error) {
+    return new Response(JSON.stringify(error.body), { status: error.status, headers: corsHeaders });
+  }
   try {
     const body = await request.json();
     const { email } = body;
@@ -113,6 +119,10 @@ export default async (request, context) => {
     if (!email) {
       logger.error('Email is required but not provided in request body.');
       return new Response(JSON.stringify({ error: 'Email is required' }), { status: 400, headers: corsHeaders });
+    }
+
+    if (email !== member.auth.email) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders})
     }
 
     const API_KEY = process.env.HUBSPOT_API_KEY;

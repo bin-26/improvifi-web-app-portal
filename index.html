@@ -88,7 +88,7 @@
             </select>
         </div>
         <div class="form-group">
-            <label for="api-key-input">API Secret Key:</label>
+            <label for="api-key-input">Password:</label>
             <input type="password" id="api-key-input" placeholder="Enter the secret key" required>
         </div>
         <button type="submit" id="generate-btn">Generate Number</button>
@@ -110,7 +110,6 @@
         const apiKey = apiKeyInput.value;
         const functionUrl = '/.netlify/functions/generateDealerNumber';
 
-        // Set loading state
         resultDiv.textContent = 'Searching...';
         resultDiv.className = 'loading';
         generateBtn.disabled = true;
@@ -120,7 +119,8 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-api-key': apiKey
+                    'x-api-key': apiKey,
+                    'x-request-timestamp': String(Date.now())
                 },
                 body: JSON.stringify({ prefix: prefix })
             });

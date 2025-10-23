@@ -20,6 +20,18 @@ export const handler = async (event, context) => {
       return { statusCode: 204, headers, body: '' };
     }
 
+    const requestTimestamp = event.headers['x-request-timestamp'];
+    if(!requestTimestamp) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Request timestamp header is missing.' }) };
+    }
+
+    const VALIDITY_WINDOW = 60 * 1000;
+    const CLOCK_SKEW_TOLERANCE = 30 * 1000;
+    const timeDifference = Date.now() - parseInt(requestTimestamp, 10);
+
+    if(isNaN(timeDifference) || timeDifference > VALIDITY_WINDOW || timeDifference < -CLOCK_SKEW_TOLERANCE) {
+      return {statusCode: 401, headers, body: JSON.stringify({ error: 'Request has expired or timestamp is invalid.' }) };
+    }
     const providedApiKey = event.headers['x-api-key'];
     const serverApiKey = process.env.GENERATOR_KEY;
     if (!providedApiKey || providedApiKey !== serverApiKey) {

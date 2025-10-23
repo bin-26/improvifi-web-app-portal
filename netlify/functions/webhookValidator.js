@@ -1,4 +1,13 @@
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
+
+// ======================     LOGGING CONTROL     ======================
+const isTestingMode = process.env.TESTING === 'true';
+
+const logger = {
+  log: isTestingMode ? console.log : () => {},
+  error: isTestingMode ? console.error : () => {},
+};
+// =====================================================================
 
 export class WebhookValidationError extends Error {
   constructor(message) {
@@ -15,12 +24,12 @@ export function validateHubspotSignature({ request, rawBody, clientSecret }) {
     throw new WebhookValidationError('Unauthorized: Missing validation headers or client secret.');
   }
 
-  const FIVE_MINUTES = 5 * 60 * 1000;
+  const VALIDITY_WINDOW = 60 * 1000;
   const CLOCK_SKEW_TOLERANCE = 30 * 1000;
 
   const timeDifference = Date.now() - parseInt(timestamp, 10);
 
-  if (timeDifference > FIVE_MINUTES || timeDifference < -CLOCK_SKEW_TOLERANCE) {
+  if (timeDifference > VALIDITY_WINDOW || timeDifference < -CLOCK_SKEW_TOLERANCE) {
     throw new WebhookValidationError('Unauthorized: Timestamp validation failed.');
   }
 
@@ -36,5 +45,17 @@ export function validateHubspotSignature({ request, rawBody, clientSecret }) {
     throw new WebhookValidationError('Unauthorized: Invalid signature.');
   }
 
-  console.log('Webhook signature validated successfully.');
+  const signatureBuffer = Buffer.from(signature, 'base64')
+  const calculatedSignatureBuffer = Buffer.from(calculatedSignature, 'base64')
+
+  let areSignaturesEqual = false;
+  if (signatureBuffer.length === calculatedSignatureBuffer) {
+    areSignaturesEqual = timingSafeEqual(signatureBuffer, calculatedSignatureBuffer);
+  }
+
+  if (!areSignaturesEqual) {
+    throw new WebhookValidationError('Unauthorized: Invalid signature.')
+  }
+  
+  logger.log('Webhook signature validated successfully.');
 }
