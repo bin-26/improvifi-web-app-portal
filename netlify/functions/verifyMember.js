@@ -26,11 +26,15 @@ const MEMBERSTACK = memberstackAdmin.init(process.env.MEMBERSTACK_SECRET);
 
 export async function requireMember(request) {
   
-  const h = request?.headers?.get
-    ? (request.headers.get('authorization') || request.headers.get('Authorization') || '')
-    : (request?.headers?.authorization || request?.headers?.Authorization || '');
+  const h =
+    request?.headers?.get?.('authorization') ||
+    request?.headers?.get?.('Authorization') ||
+    request?.headers?.authorization ||
+    request?.headers?.Authorization ||
+    '';
   
-  if (h.startsWith('Bearer ')) token = h.slice('Bearer '.length);
+  let token = null;
+  if (h.startsWith('Bearer ')) { token = h.slice('Bearer '.length); }
 
   if (!token) {
     return { error: { status: 401, body: { error: "unauthorized", message: "Missing Memberstack cookie" } } };
@@ -53,5 +57,4 @@ export async function requireMember(request) {
   }
 
   return { member: { id: member.id, email: member.email || null } };
-
 }
