@@ -1,18 +1,5 @@
 import memberstackAdmin from "@memberstack/admin";
 
-function getCookie(cookieString, name) {
-  if (!cookieString) return null;
-  const nameEQ = `${name}=`;
-  const parts = cookieString.split(';');
-  for (let i = 0; i < parts.length; i++) {
-    let c = parts[i].trim();
-    if (c.indexOf(nameEQ) === 0) {
-      return c.substring(nameEQ.length);
-    }
-  }
-  return null;
-}
-
 // ======================     LOGGING CONTROL     ======================
 const isTestingMode = process.env.TESTING === 'true';
 
@@ -46,31 +33,60 @@ export async function requireMember(request) {
     tokenSample: token?.slice(0, 20) + '...'
   });
 
+  let payload = null;
   try {
-  const parts = token.split('.');
-  const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-  logger.log('token.claims', {
-    aud: payload.aud,
-    iss: payload.iss,
-    sub: payload.sub || payload.member?.id,
-    email: payload.member?.email,
-    exp: payload.exp, iat: payload.iat,
-    expISO: new Date(payload.exp * 1000).toISOString(),
-    iatISO: new Date(payload.iat * 1000).toISOString()
-  });
-} catch (e) {
-  logger.error('Failed to decode token payload:', e?.message || e);
-}
+    const parts = token.split('.');
+    payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+    logger.log('token.claims', {
+      aud: payload.aud,
+      iss: payload.iss,
+      sub: payload.sub || payload.member?.id,
+      email: payload.member?.email,
+      exp: payload.exp, iat: payload.iat,
+      expISO: new Date(payload.exp * 1000).toISOString(),
+      iatISO: new Date(payload.iat * 1000).toISOString()
+    });
 
-  const { data: verified } = await MEMBERSTACK.verifyToken({
-    token,
-    audience: process.env.MEMBERSTACK_APP_ID
-  });
-
-  const member = verified?.member || verified;
-  if (!member?.id) {
-    return { error: { status: 403, body: { error: 'invalid_token', message: 'Invalid token' } } };
+  } catch (e) {
+    logger.error('Failed to decode token payload:', e?.message || e);
   }
 
-  return { member: { id: member.id, email: member.email || null } };
+  try {
+    const { data: verified } = await MEMBERSTACK.verifyToken({
+      token,
+      audience: process.env.MEMBERSTACK_APP_ID
+    });
+    
+    const fromSdk = verified?.member || null;
+
+    let memberId =
+      fromSdk?.id
+      || payload?.member?.id
+      || verified?.memberId
+      || verified?.userId
+      || verified?.sub
+      || null;
+
+    let email =
+      fromSdk?.email
+      || payload?.member?.email
+      || verified?.email
+      || null;
+
+    if (!memberId) {
+      logger.error('Verified token but missing member id in response/payload', { keys: Object.keys(verified || {}) });
+      return {
+        error: {
+          status: 403,
+          body: { error: "invalid_token", message: "Verified token but no member id" }
+        }
+      };
+    }
+
+    return { member: { id: memberId, email } };
+
+  } catch (err) {
+    logger.error("Token verification failed:", err?.response || err?.message || err);
+    return { error: { status: 403, body: { error: "invalid_token", message: "Invalid or expired token" } } };
+  }
 }
