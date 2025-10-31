@@ -40,11 +40,27 @@ export async function requireMember(request) {
     return { error: { status: 401, body: { error: "unauthorized", message: "Missing Memberstack cookie" } } };
   }
 
-  logger.log('🔍 verifyToken start', {
+  logger.log('verifyToken start', {
     appId: process.env.MEMBERSTACK_APP_ID,
     secretPresent: !!process.env.MEMBERSTACK_SECRET,
     tokenSample: token?.slice(0, 20) + '...'
   });
+
+  try {
+  const parts = token.split('.');
+  const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+  logger.log('token.claims', {
+    aud: payload.aud,
+    iss: payload.iss,
+    sub: payload.sub || payload.member?.id,
+    email: payload.member?.email,
+    exp: payload.exp, iat: payload.iat,
+    expISO: new Date(payload.exp * 1000).toISOString(),
+    iatISO: new Date(payload.iat * 1000).toISOString()
+  });
+} catch (e) {
+  logger.error('Failed to decode token payload:', e?.message || e);
+}
 
   const { data: verified } = await MEMBERSTACK.verifyToken({
     token,
