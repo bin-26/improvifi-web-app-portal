@@ -36,6 +36,12 @@ export async function requireMember(request) {
     return { error: { status: 401, body: { error: "unauthorized", message: "Missing Memberstack cookie" } } };
   }
 
+  logger.log('🔍 verifyToken start', {
+    appId: process.env.MEMBERSTACK_APP_ID,
+    secretPresent: !!process.env.MEMBERSTACK_SECRET,
+    tokenSample: token?.slice(0, 20) + '...'
+  });
+
   const { data: verified } = await MEMBERSTACK.verifyToken({
     token,
     audience: process.env.MEMBERSTACK_APP_ID
@@ -45,7 +51,7 @@ export async function requireMember(request) {
   if (!member?.id) {
     return { error: { status: 403, body: { error: 'invalid_token', message: 'Invalid token' } } };
   }
-  
+
   return { member: { id: member.id, email: member.email || null } };
 
 }
