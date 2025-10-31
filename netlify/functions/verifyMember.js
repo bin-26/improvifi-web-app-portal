@@ -29,7 +29,7 @@ export async function requireMember(request) {
       ? (request.headers.get('cookie') || '')
       : (request?.headers?.cookie || '');
 
-  const token = getCookie(headers.cookie, "_ms-mid"); 
+  const token = getCookie(cookieHeader, "_ms-mid");
   if (!token) {
     return { error: { status: 401, body: { error: "unauthorized", message: "Missing Memberstack cookie" } } };
   }
