@@ -49,10 +49,17 @@ export async function requireMember(eventOrRequest) {
         audience: appAudience
     });
 
-    const member = verified?.member;
+    const raw = verified?.member || verified;
+
+    const member = {
+      id: raw?.id,
+      email: raw?.email,
+    };
+
     if (!member?.id) {
       return { error: { status: 403, body: { error: "Invalid token" } } };
     }
+    
     return { member };
   } catch (e) {
     logger.error("Token verification failed: ", e.message);

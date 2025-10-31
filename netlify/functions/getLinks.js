@@ -97,10 +97,11 @@ async function extractHubSpotProperties(properties, hubspotApiHeaders) {
 
 export default async (request, context) => {
 
-  const origin = isTestingMode ? '*' : 'https://www.improvifi.app';
+  const origin = isTestingMode ? '*' : 'https://improvifi.app';
 
   const corsHeaders = {
     "Access-Control-Allow-Origin": origin,
+    "Vary": "Origin",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Credentials": "true"
@@ -110,21 +111,14 @@ export default async (request, context) => {
   if (request.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: corsHeaders });
 
   const { member, error } = await requireMember(request);
+
   if (error) {
     return new Response(JSON.stringify(error.body), { status: error.status, headers: corsHeaders });
   }
-  try {
-    const body = await request.json();
-    const { email } = body;
-    
-    if (!email) {
-      logger.error('Email is required but not provided in request body.');
-      return new Response(JSON.stringify({ error: 'Email is required' }), { status: 400, headers: corsHeaders });
-    }
 
-    if (email !== member.auth.email) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders})
-    }
+  const email = member.email;
+
+  try {
 
     const API_KEY = process.env.HUBSPOT_API_KEY;
     
