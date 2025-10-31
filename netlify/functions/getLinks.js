@@ -97,23 +97,54 @@ async function extractHubSpotProperties(properties, hubspotApiHeaders) {
 
 export default async (request, context) => {
 
-  const origin = isTestingMode ? '*' : 'https://www.improvifi.app';
+  const allowedOrigins = isTestingMode
+    ? [
+        'http://localhost:3000',
+        'http://127.0.0.1:5173',
+        'https://improvifi.app',
+        'https://www.improvifi.app'
+      ]
+    : ['https://improvifi.app', 'https://www.improvifi.app'];
+
+  const reqOrigin = request.headers.get('origin') || '';
+  const allowOrigin = allowedOrigins.includes(reqOrigin) ? reqOrigin : '';
 
   const corsHeaders = {
-    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Origin": allowOrigin,
     "Vary": "Origin",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Credentials": "true"
   };
 
-  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
-  if (request.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: corsHeaders });
+  if (request.method === 'OPTIONS') {
+    if (!allowOrigin) {
+      return new Response(null, { status: 403, headers: { Vary: 'Origin' } });
+    }
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  if (!allowOrigin) {
+    return new Response(JSON.stringify({ error: 'CORS origin not allowed' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json', Vary: 'Origin' }
+    });
+  }
+
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405, 
+      headers: corsHeaders
+    });
+  }
 
   const { member, error } = await requireMember(request);
 
   if (error) {
-    return new Response(JSON.stringify(error.body), { status: error.status, headers: corsHeaders });
+    return new Response(JSON.stringify(error.body), {
+      status: error.status, 
+      headers: corsHeaders
+    });
   }
 
   const email = member.email;
@@ -124,7 +155,10 @@ export default async (request, context) => {
     
     if (!API_KEY) {
       logger.error('HUBSPOT_API_KEY is not set in environment variables.');
-      return new Response(JSON.stringify({ error: 'Server configuration error: API Key missing.' }), { status: 500, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: 'Server configuration error: API Key missing.' }), {
+        status: 500, 
+        headers: corsHeaders 
+      });
     }
     
     const hubspotApiHeaders = {

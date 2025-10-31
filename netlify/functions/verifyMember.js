@@ -24,23 +24,20 @@ const logger = {
 
 const MEMBERSTACK_SECRET = memberstackAdmin.init(process.env.MEMBERSTACK_SECRET);
 
-export async function requireMember(eventOrRequest) {
-  const headers =
-    eventOrRequest?.headers?.get
-      ? Object.fromEntries(eventOrRequest.headers)
-      : eventOrRequest.headers || {};
+export async function requireMember(request) {
+  const cookieHeader = request?.headers?.get
+      ? (request.headers.get('cookie') || '')
+      : (request?.headers?.cookie || '');
 
   const token = getCookie(headers.cookie, "_ms-mid"); 
-
   if (!token) {
-    return { error: { status: 401, body: { error: "Missing authentication cookie" } } };
+    return { error: { status: 401, body: { error: "unauthorized", message: "Missing Memberstack cookie" } } };
   }
 
   const appAudience = process.env.MEMBERSTACK_APP_ID;
-
   if (!appAudience) {
     logger.error("CRITICAL: MEMBERSTACK_APP_ID is not set in environment variables.");
-    return { error: {status: 500, body: { error: "Server configuration error" } } };
+    return { error: {status: 500, body: { error: "server_config", message: "Server configuration error" } } };
   }
 
   try {
@@ -49,20 +46,15 @@ export async function requireMember(eventOrRequest) {
         audience: appAudience
     });
 
-    const raw = verified?.member || verified;
-
-    const member = {
-      id: raw?.id,
-      email: raw?.email,
-    };
+    const member = verified?.member || verified;
 
     if (!member?.id) {
-      return { error: { status: 403, body: { error: "Invalid token" } } };
+      return { error: { status: 403, body: { error: "Invalid token", message: "Invalid token" } } };
     }
-    
-    return { member };
+
+    return { member: { id: member.id, email: member.email || null } };
   } catch (e) {
     logger.error("Token verification failed: ", e.message);
-    return { error: { status: 403, body: { error: "Invalid token" } } };
+    return { error: { status: 403, body: { error: "Invalid token", message: "Invalid token" } } };
   }
 }
