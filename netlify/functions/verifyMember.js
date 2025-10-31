@@ -58,18 +58,15 @@ export async function requireMember(request) {
   }
 
   try {
-    const { data: verified } = await MEMBERSTACK.verifyToken({
+    const result = await MEMBERSTACK.verifyToken({
       token,
       audience: process.env.MEMBERSTACK_APP_ID
     });
 
-    const v = verified?.data || verified || {};
-    const memberId = v.id || v.memberId || v.userId || v?.member?.id || null;
+    const memberId = result.id || result.memberId || result.userId || result?.member?.id || null;
 
     if (!memberId) {
-      logger.error('Verified token but missing member id in response/payload', { 
-        keys: Object.keys(verified || {}) 
-      });
+      logger.error('Verified token but missing member id in response/payload', { result });
       return {
         error: {
           status: 403,
