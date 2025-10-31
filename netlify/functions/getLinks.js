@@ -97,7 +97,7 @@ async function extractHubSpotProperties(properties, hubspotApiHeaders) {
 
 export default async (request, context) => {
 
-  const origin = isTestingMode ? '*' : 'https://improvifi.app';
+  const origin = isTestingMode ? '*' : 'https://www.improvifi.app';
 
   const corsHeaders = {
     "Access-Control-Allow-Origin": origin,
